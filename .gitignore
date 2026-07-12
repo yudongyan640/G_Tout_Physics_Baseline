@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Result files (task summaries)
+results/
+Result*.txt
+
+# Simulation outputs (large)
+outputs/case_*/
+outputs_smoke/
+
+# OGS raw data
+OGS_data/
+*.vtu
+*.pvd
+*.prj
+*.gml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Agent/session files
+.agents/
+.codex/
