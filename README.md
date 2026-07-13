@@ -1,131 +1,248 @@
 # Physics-Based Outlet Temperature Prediction Model for Deep Coaxial Borehole Heat Exchanger
 
-**Version**: Physics Baseline V1.0 | **Status**: Research code — physics-driven, no ML training data used
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
+[![Status](https://img.shields.io/badge/status-stable-brightgreen)]()
+
+A **physics-driven baseline** for predicting the outlet fluid temperature `Tout(t)` of a deep coaxial borehole heat exchanger (DCBHE). This model is built entirely on first-principles partial differential equations and requires **no OGS training data, no machine learning, and no calibration against numerical simulation results**.
 
 ---
 
-## English Summary
+## 1. Overview
 
-### Project Overview
+### Background
 
-This project implements a **physics-driven baseline model** for predicting the outlet fluid temperature `Tout(t)` of a **Deep Coaxial Borehole Heat Exchanger (DCBHE)**. It is part of a broader comparative study for:
+Deep coaxial borehole heat exchangers (DCBHE) are an efficient technology for geothermal energy extraction. Accurate prediction of the outlet fluid temperature `Tout(t)` is essential for system design, performance evaluation, and long-term operation optimization.
 
-- PINN (Physics-Informed Neural Network) outlet temperature prediction;
-- OGS (OpenGeoSys) high-fidelity numerical simulation;
-- Pure data-driven NN models.
+### Why a Physics Baseline?
 
-> The baseline is built entirely on first-principles physics — it requires **no OGS training data**, no fitting, and no calibration against numerical simulation results.
+This project is part of a three-model comparison framework:
 
-### Model Features
+```
+NN baseline          →   Pure data-driven neural network
+                       ↓
+Physics baseline     →   PDE/ODE-based physical model (this repository)
+                       ↓
+PINN model           →   Physics-Informed Neural Network (hybrid)
+```
 
-| Feature | Description |
+The **physics baseline** is the reference point: it solves the governing fluid and rock energy equations directly using numerical methods, without any training data. It provides:
+
+- A physically consistent `Tout(t)` prediction based solely on geometry, material properties, and boundary conditions;
+- A benchmark for evaluating both pure NN and PINN approaches;
+- A modular codebase that can be extended for more complex physics.
+
+### Relationship to OGS
+
+This model reads OGS simulation configuration (`.prj` / `.gml` files) for parameter extraction, but it does **not** read, use, or fit any OGS result fields (`.vtu` / `.pvd` files). The physics baseline is independent of OGS temperature fields.
+
+---
+
+## 2. Features
+
+- **PDE/ODE-based outlet temperature prediction** — quasi-steady fluid BVP coupled with transient rock heat conduction.
+- **Fluid energy balance solver** — solves the coupled annulus and inner-pipe energy equations using `scipy.integrate.solve_bvp`.
+- **Rock transient heat conduction solver** — 1D radial implicit finite-difference scheme with logarithmic mesh refinement near the borehole wall.
+- **OGS parameter extraction** — reads and parses OpenGeoSys `.prj` and `.gml` files for geometry and material properties.
+- **Thermal resistance calculation** — computes borehole resistance `R_borehole`, overall heat transfer coefficients `U_wall` / `U_pa`, and short-circuit resistance `R_short_circuit`.
+- **Sensitivity analysis** — built-in parametric study of borehole thermal resistance on outlet temperature.
+- **H-Q trend verification** — scripts to verify expected physical behavior with varying borehole depth and flow rate.
+- **Early-stage diagnostics** — metrics to detect and exclude start-up transients from evaluation.
+
+---
+
+## 3. Model Framework
+
+```
+OGS physical parameters (.prj / .gml)
+              ↓
+      Parameter extraction
+      (ogs_parameter_extractor.py)
+              ↓
+    Thermal resistance calculation
+(borehole_resistance_calculator.py,
+ short_circuit_resistance_calculator.py)
+              ↓
+    Fluid-rock coupled solver
+   (fluid_bvp_solver.py + rock_solver_1d.py)
+              ↓
+     Outlet temperature Tout(t)
+```
+
+The simulation proceeds step-by-step in time. At each time step:
+
+1. The fluid BVP is solved for the current rock temperature profile, giving `Ta(z)` and `Tp(z)`.
+2. The rock heat conduction PDE is advanced one time step using the borehole wall heat flux computed from the fluid solution.
+3. The outlet temperature `Tout(t) = Tp(0, t)` is recorded.
+
+---
+
+## 4. Governing Equations
+
+### Fluid Energy Balance (Quasi-Steady, 1D)
+
+Annulus fluid (downward flow):
+```
+m_dot · cp · dTa/dz = U_wall · (Twall − Ta) + U_pa · (Tp − Ta)
+```
+
+Inner pipe fluid (upward flow):
+```
+m_dot · cp · dTp/dz = U_pa · (Tp − Ta)
+```
+
+### Rock Heat Conduction (1D Radial, Transient)
+
+```
+ρr · cr · ∂Ts/∂t = kr · (1/r) · ∂/∂r (r · ∂Ts/∂r)
+```
+
+### Boundary and Initial Conditions
+
+| Condition | Expression |
 |---|---|
-| **Physics-driven** | Quasi-steady fluid ODE/BVP + transient rock radial heat conduction PDE |
-| **No OGS data required** | Solves directly from geometry, material properties, and boundary conditions |
-| **Borehole resistance** | Computes `R_borehole`, `U_wall`, `U_pa`, and `R_short_circuit` |
-| **Parameter mapping** | Reads and maps OGS simulation parameters (`.prj`/`.gml`) to physical model inputs |
-| **H-Q trend verification** | Built-in scripts to verify expected physical trends with depth and flow rate |
-| **Sensitivity analysis** | Borehole thermal resistance sensitivity study module |
-| **Early-stage diagnostics** | Metrics to identify and exclude start-up period from evaluation |
+| Inlet temperature | `Ta(0) = Tin` |
+| Bottom coupling | `Tp(H) = Ta(H)` |
+| Outlet temperature | `Tout(t) = Tp(0)` |
+| Initial rock temperature | `Ts(r, z, 0) = Tamb + G · z` |
+| Far-field boundary | `Ts(Rout, z, t) = Tamb + G · z` |
+| Borehole wall coupling | `q_wall = U_wall · (Twall_new − Ta)` (implicit Robin) |
 
-### Mathematical Model
+The borehole wall heat flux `q_wall` is treated implicitly to avoid numerical instability under strong heat extraction.
 
-**Fluid energy equations** (quasi-steady, 1D):
+---
 
-Annulus (downward flow):
-```
-m_dot · cw · dTa/dz = U_wall · (Twall − Ta) + U_pa · (Tp − Ta)
-```
-
-Inner pipe (upward flow):
-```
-m_dot · cw · dTp/dz = U_pa · (Tp − Ta)
-```
-
-**Rock heat conduction** (1D radial, transient):
-```
-ρr · cr · ∂Ts/∂t = kr · (1/r) · ∂/∂r(r · ∂Ts/∂r)
-```
-
-**Boundary conditions**:
-- Fluid: `Ta(0) = Tin`, `Tp(H) = Ta(H)`, `Tout(t) = Tp(0)`
-- Rock initial: `Ts(r,z,0) = Tamb + G · z`
-- Far-field: `Ts(Rout,z,t) = Tamb + G · z`
-- Borehole wall: implicit Robin-type coupling `q_wall = U_wall · (Twall_new − Ta)`
-
-### Model Pipeline
+## 5. Project Structure
 
 ```
-OGS parameters (.prj / .gml)
-         ↓
-   parameter_mapping.py
-         ↓
-  Physical parameters (geometry, properties, boundary conditions)
-         ↓
-  R_borehole / U_wall / U_pa / R_short_circuit
-         ↓
-   fluid_bvp_solver.py (quasi-steady BVP at each time step)
-         ↓
-   rock_solver_1d.py   (implicit radial heat conduction)
-         ↓
-   Tout(t) time series
-         ↓
-   postprocess.py (CSV, JSON, figures)
+G_Tout_Physics_Baseline/
+│
+├── config.py                          # Model configuration (geometry, mesh, run settings)
+├── geometry.py                        # Geometric calculations (areas, hydraulic diameter, velocity)
+├── heat_transfer.py                   # Heat transfer coefficients (Re, Pr, Nu, U_wall, U_pa)
+├── fluid_bvp_solver.py                # Quasi-steady fluid BVP solver (scipy.integrate.solve_bvp)
+├── rock_solver_1d.py                  # 1D radial rock heat conduction (implicit finite-difference)
+├── simulation.py                      # Main simulation orchestrator (time-stepping loop)
+├── run_single_case.py                 # Entry point: run a single default case (20-year)
+├── postprocess.py                     # Output post-processing (CSV, JSON, PNG/SVG figures)
+│
+├── borehole_resistance_calculator.py  # Borehole thermal resistance calculation
+├── short_circuit_resistance_calculator.py  # Short-circuit thermal resistance calculation
+│
+├── ogs_parameter_extractor.py         # OGS .prj / .gml parameter parser
+├── parameter_mapping.py               # Map OGS parameters to physical model inputs
+├── check_ogs_mapping.py               # Validate OGS parameter mapping
+│
+├── sanity_check.py                    # Quick smoke test (small problem size)
+├── trend_check_H_Q.py                 # H-Q trend verification script
+├── sensitivity_borehole_resistance.py # Borehole resistance sensitivity study
+├── early_time_check.py                # Start-up period diagnostics
+│
+├── test_*.py                          # Unit tests (7 test files)
+├── CHANGELOG.md                       # Version history
+├── requirements.txt                   # Python dependencies
+├── .gitignore                         # Git ignore rules
+├── AGENTS.md                          # Agent configuration
+├── CLAUDE.md                          # Project instructions
+└── README.md                          # This file
 ```
 
-### How to Run
+---
+
+## 6. Usage
+
+### Quick Smoke Test
+
+Verify that the model runs correctly with a small problem:
 
 ```bash
-# Quick validation (small problem)
 conda run -n geo_pinn python sanity_check.py
+```
 
-# Full single-case run (20-year default)
+This runs a short simulation (H=1000 m, t_end=10 days) and checks basic physical consistency: `Tout > Tin`, positive heat flux at the borehole wall, and rock temperature drawdown.
+
+### Single-Case Run
+
+Run the default 20-year simulation:
+
+```bash
 conda run -n geo_pinn python run_single_case.py
+```
 
-# Trend verification (H-Q sensitivity)
+Default parameters: H=2500 m, Q=30 m³/h, Tin=10 °C, Tamb=15 °C, G=0.035 K/m.
+
+Outputs are saved to `outputs/case_H2500_Q30_Tin10/` (CSV, JSON, PNG, SVG).
+
+### Additional Analysis Scripts
+
+```bash
+# H-Q trend verification
 conda run -n geo_pinn python trend_check_H_Q.py
 
-# Borehole resistance sensitivity
+# Borehole resistance sensitivity analysis
 conda run -n geo_pinn python sensitivity_borehole_resistance.py
 
-# OGS parameter mapping check
+# OGS parameter mapping validation
 conda run -n geo_pinn python check_ogs_mapping.py
 ```
 
 ### Dependencies
 
-See [requirements.txt](requirements.txt). Key packages: `numpy`, `scipy`, `matplotlib`.
+See [requirements.txt](requirements.txt). Key packages: `numpy`, `scipy`, `matplotlib`. Install with:
 
-### Repository Structure
-
-```
-G_Tout_Physics_Baseline/
-├── config.py                          # Model configuration
-├── geometry.py                        # Geometric calculations
-├── heat_transfer.py                   # Heat transfer coefficients
-├── fluid_bvp_solver.py                # Fluid BVP solver
-├── rock_solver_1d.py                  # Rock radial conduction solver
-├── simulation.py                      # Main simulation orchestrator
-├── borehole_resistance_calculator.py  # Borehole thermal resistance
-├── short_circuit_resistance_calculator.py  # Short-circuit resistance
-├── ogs_parameter_extractor.py         # OGS parameter reader
-├── parameter_mapping.py               # OGS → physical mapping
-├── check_ogs_mapping.py               # Mapping validation
-├── run_single_case.py                 # Run entry point
-├── postprocess.py                     # Output and plotting
-├── sanity_check.py                    # Smoke test
-├── trend_check_H_Q.py                 # H-Q trend verification
-├── sensitivity_borehole_resistance.py # Sensitivity analysis
-├── early_time_check.py                # Start-up diagnostics
-├── test_*.py                          # Unit tests
-├── docs/                              # Design docs and plans
-└── requirements.txt                   # Python dependencies
+```bash
+conda run -n geo_pinn python -m pip install -r requirements.txt
 ```
 
-### Current Status and Next Steps
+---
 
-- **V1.0 complete**: Quasi-steady fluid solver, 1D radial rock conduction, borehole resistance calculation, OGS parameter mapping, trend verification, sensitivity analysis.
-- **Planned**: OGS validation comparison → PINN residual formulation → r-z axisymmetric rock conduction → temperature-dependent material properties → optimization.
+## 7. Validation Status
+
+| Check | Status |
+|---|---|
+| H-Q trend verification | ✅ Completed |
+| Thermal resistance sensitivity | ✅ Completed |
+| OGS outlet temperature validation | 🔄 Ongoing |
+| Field measurement validation | 📋 Planned |
+
+### Verified Physical Trends
+
+- Increasing borehole depth `H` raises `Tout`.
+- Increasing flow rate `Q` lowers `Tout` but increases heat extraction power.
+- Higher inlet temperature `Tin` raises `Tout` but reduces temperature rise `Tout − Tin`.
+- Greater borehole thermal resistance reduces `Tout` and accelerates rock cooling.
+- Long-term operation shows gradual thermal drawdown with stabilizing trend.
+
+---
+
+## 8. Version History
+
+| Version | Date | Description |
+|---|---|---|
+| [v1.0.0](https://github.com/yudongyan640/G_Tout_Physics_Baseline/releases/tag/v1.0.0) | 2026-07-13 | Initial stable release |
+
+See [CHANGELOG.md](CHANGELOG.md) for details.
+
+---
+
+## 9. Limitations and Future Work
+
+### Current Limitations
+
+- **1D radial rock model** — rock heat conduction is solved independently at each depth; no axial heat conduction.
+- **No groundwater advection** — heat transfer in the rock is by conduction only.
+- **Constant material properties** — fluid and rock properties are temperature-independent.
+- **Quasi-steady fluid** — fluid energy storage and axial conduction are neglected.
+- **Simplified borehole resistance** — uses a lumped `R_borehole` parameter rather than a detailed layer-by-layer model.
+- **Placeholder geometry** — default geometric parameters are illustrative; real project values should be substituted.
+
+### Planned Improvements
+
+- 2D r-z axisymmetric transient rock heat conduction model.
+- Improved layer-by-layer borehole thermal resistance model.
+- Temperature-dependent fluid and rock material properties.
+- Seasonal operation strategies and variable inlet temperature.
+- OGS high-fidelity validation comparison.
+- Physics-PINN coupling (hybrid model).
 
 ---
 
