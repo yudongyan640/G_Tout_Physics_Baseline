@@ -1,7 +1,20 @@
-"""几何与流动基础量计算。
+"""
+Module name:
+    geometry.py
 
-本文件只处理面积、水力直径、质量流量和流速等基础几何/流动量。
-换热关联式放在 heat_transfer.py 中，便于后续单独替换。
+Purpose:
+    Compute fundamental geometric and flow quantities for the coaxial borehole
+    heat exchanger: cross-sectional areas, hydraulic diameters, mass flow rate,
+    and flow velocities.
+
+    Heat-transfer correlations are kept in heat_transfer.py so that each module
+    can be replaced independently.
+
+Dependencies:
+    - config.ModelConfig
+
+Outputs:
+    - GeometryResult dataclass containing all geometric values.
 """
 
 from __future__ import annotations
@@ -14,7 +27,27 @@ from config import ModelConfig
 
 @dataclass
 class GeometryResult:
-    """几何与流动计算结果。"""
+    """Results of geometry and flow calculations.
+
+    Attributes
+    ----------
+    center_area : float
+        Inner pipe cross-sectional area (m2).
+    annulus_area : float
+        Annulus cross-sectional area (m2).
+    center_dh : float
+        Inner pipe hydraulic diameter (m).
+    annulus_dh : float
+        Annulus hydraulic diameter (m).
+    Q_m3s : float
+        Volumetric flow rate (m3/s).
+    m_dot : float
+        Mass flow rate (kg/s).
+    center_velocity : float
+        Flow velocity in the inner pipe (m/s).
+    annulus_velocity : float
+        Flow velocity in the annulus (m/s).
+    """
 
     center_area: float
     annulus_area: float
@@ -27,9 +60,10 @@ class GeometryResult:
 
 
 def validate_geometry(config: ModelConfig) -> None:
-    """检查几何参数是否基本合理。
+    """Check that borehole geometry parameters are physically consistent.
 
-    如果几何参数不合理，直接抛出 ValueError，避免后续求解得到无意义结果。
+    Raises ValueError if any parameter is out of range, preventing
+    meaningless solutions downstream.
     """
 
     if config.H <= 0.0:
@@ -49,7 +83,24 @@ def validate_geometry(config: ModelConfig) -> None:
 
 
 def compute_geometry(config: ModelConfig) -> GeometryResult:
-    """根据配置计算面积、水力直径、质量流量和流速。"""
+    """Compute cross-sectional areas, hydraulic diameters, mass flow rate, and velocities.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        Model configuration containing geometry and flow parameters.
+
+    Returns
+    -------
+    GeometryResult
+        All computed geometric quantities (areas, diameters, flow rates).
+
+    Notes
+    -----
+    Centre pipe hydraulic diameter = 2 * r_inner.
+    Annulus hydraulic diameter = 2 * (outer_radius - inner_radius).
+    Flow rate is converted from m3/h to m3/s before computing mass flow rate.
+    """
 
     validate_geometry(config)
 

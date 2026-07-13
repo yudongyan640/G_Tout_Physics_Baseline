@@ -1,7 +1,32 @@
-"""准稳态流体一维边值问题求解器。
+"""
+Module name:
+    fluid_bvp_solver.py
 
-给定当前时刻井壁温度 Twall(z)，求解环空下降流体 Ta(z) 与中心管上升流体 Tp(z)。
-出口水温不是输入边界条件，而是求解结果 Tout = Tp(0)。
+Purpose:
+    Solve the coupled quasi-steady fluid energy equations as a boundary-value
+    problem (BVP).
+
+    Given the borehole wall temperature profile Twall(z) at the current time
+    step, compute:
+        - Annulus downward-flowing fluid temperature Ta(z)
+        - Inner-pipe upward-flowing fluid temperature Tp(z)
+        - Outlet temperature Tout = Tp(0)
+
+    The outlet temperature is not a boundary condition but a solution result.
+
+Physical model:
+    - Annulus:  m_dot * cw * dTa/dz = U_wall * (Twall - Ta) + U_pa * (Tp - Ta)
+    - Inner pipe: m_dot * cw * dTp/dz = U_pa * (Tp - Ta)
+    - Boundaries: Ta(0) = Tin, Tp(H) = Ta(H)
+
+Dependencies:
+    - numpy
+    - scipy.integrate.solve_bvp
+    - config.ModelConfig
+    - heat_transfer.HeatTransferResult
+
+Outputs:
+    - FluidSolution dataclass containing temperature profiles and diagnostics.
 """
 
 from __future__ import annotations
@@ -17,7 +42,25 @@ from heat_transfer import HeatTransferResult
 
 @dataclass
 class FluidSolution:
-    """流体 BVP 的求解结果。"""
+    """Solution of the fluid BVP at one time step.
+
+    Attributes
+    ----------
+    z : np.ndarray
+        Depth coordinates (m).
+    Ta : np.ndarray
+        Annulus fluid temperature profile (degC).
+    Tp : np.ndarray
+        Inner pipe fluid temperature profile (degC).
+    Tout : float
+        Outlet temperature at z = 0 (degC).
+    q_wall : np.ndarray
+        Borehole wall heat flux per unit length (W/m).
+    success : bool
+        Whether solve_bvp converged.
+    message : str
+        Solver status message.
+    """
 
     z: np.ndarray
     Ta: np.ndarray
@@ -34,10 +77,28 @@ def build_initial_guess(
     config: ModelConfig,
     previous_solution: FluidSolution | None = None,
 ) -> np.ndarray:
-    """构造 solve_bvp 初始猜测。
+    """Construct the initial guess for solve_bvp.
 
-    如果上一时间步已经有解，则直接用上一时间步结果作为初值，通常能提高收敛稳定性。
-    否则用入口水温到地层温度的线性升高作为 Ta 猜测，Tp 略高于 Ta。
+    If a previous solution exists (previous time step), it is reused directly
+    as the initial guess, which improves convergence stability.
+    Otherwise, a linear profile from Tin to Twall(H) is used for Ta, with Tp
+    slightly above Ta.
+
+    Parameters
+    ----------
+    z : np.ndarray
+        Depth grid (m).
+    Twall : np.ndarray
+        Borehole wall temperature profile at the current time (degC).
+    config : ModelConfig
+        Model configuration containing the inlet temperature.
+    previous_solution : FluidSolution or None
+        Solution from the previous time step, if available.
+
+    Returns
+    -------
+    np.ndarray
+        Initial guess array of shape (2, z.size) for [Ta; Tp].
     """
 
     if previous_solution is not None:
@@ -56,15 +117,33 @@ def solve_fluid_bvp(
     heat_transfer: HeatTransferResult,
     previous_solution: FluidSolution | None = None,
 ) -> FluidSolution:
-    """求解当前时刻的流体准稳态 BVP。
+    """Solve the quasi-steady fluid BVP for the current time step.
 
-    控制方程：
-    m_dot*cw*dTa/dz = U_wall*(Twall-Ta) + U_pa*(Tp-Ta)
-    m_dot*cw*dTp/dz = U_pa*(Tp-Ta)
+    Governing equations:
+        m_dot * cw * dTa/dz = U_wall * (Twall - Ta) + U_pa * (Tp - Ta)
+        m_dot * cw * dTp/dz = U_pa * (Tp - Ta)
 
-    边界条件：
-    Ta(0)=Tin
-    Tp(H)=Ta(H)
+    Boundary conditions:
+        Ta(0) = Tin
+        Tp(H) = Ta(H)
+
+    Parameters
+    ----------
+    z : np.ndarray
+        Depth grid (m).
+    Twall : np.ndarray
+        Borehole wall temperature profile (degC).
+    config : ModelConfig
+        Model configuration.
+    heat_transfer : HeatTransferResult
+        Heat transfer coefficients (U_wall, U_pa, mass flow rate, etc.).
+    previous_solution : FluidSolution or None
+        Previous time-step solution for initial guess.
+
+    Returns
+    -------
+    FluidSolution
+        Temperature profiles, outlet temperature, and solver diagnostics.
     """
 
     z = np.asarray(z, dtype=float)

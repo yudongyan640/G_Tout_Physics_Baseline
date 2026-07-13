@@ -1,7 +1,21 @@
-"""换热系数计算模块。
+"""
+Module name:
+    heat_transfer.py
 
-本文件计算 Re、Pr、Dittus-Boelter 对流换热系数，以及单位长度换热系数 U_wall 和 U_pa。
-第一版假设湍流换热；如果 Re 偏低，只给出 warning，不额外切换层流模型。
+Purpose:
+    Compute Reynolds number, Prandtl number, Dittus-Boelter convective heat
+    transfer coefficients, and the overall unit-length heat transfer parameters
+    U_wall (borehole wall-to-annulus) and U_pa (inner pipe-to-annulus).
+
+    The first version assumes turbulent flow; a warning is issued for low Re
+    but no laminar correlation is implemented.
+
+Dependencies:
+    - config.ModelConfig
+    - geometry.GeometryResult
+
+Outputs:
+    - HeatTransferResult dataclass with all heat-transfer quantities.
 """
 
 from __future__ import annotations
@@ -16,7 +30,29 @@ from geometry import GeometryResult, compute_geometry
 
 @dataclass
 class HeatTransferResult:
-    """换热计算结果。"""
+    """Computed heat transfer coefficients and diagnostics.
+
+    Attributes
+    ----------
+    geometry : GeometryResult
+        The underlying geometry and flow data.
+    Re_center : float
+        Inner-pipe Reynolds number (-).
+    Re_annulus : float
+        Annulus Reynolds number (-).
+    Pr : float
+        Prandtl number (-).
+    h_inner : float
+        Inner-pipe convective coefficient (W/(m2·K)).
+    h_outer : float
+        Annulus-side convective coefficient (W/(m2·K)).
+    h_wall : float
+        Annulus-side coefficient stored for legacy diagnostics (W/(m2·K)).
+    U_wall : float
+        Borehole wall-to-annulus unit-length heat transfer coefficient (W/(m·K)).
+    U_pa : float
+        Inner pipe-to-annulus unit-length heat transfer coefficient (W/(m·K)).
+    """
 
     geometry: GeometryResult
     Re_center: float
@@ -30,33 +66,96 @@ class HeatTransferResult:
 
 
 def compute_reynolds(rho: float, velocity: float, hydraulic_diameter: float, mu: float) -> float:
-    """计算雷诺数 Re = rho*u*dh/mu。"""
+    """Compute Reynolds number Re = rho * u * dh / mu.
+
+    Parameters
+    ----------
+    rho : float
+        Fluid density (kg/m3).
+    velocity : float
+        Flow velocity (m/s).
+    hydraulic_diameter : float
+        Hydraulic diameter (m).
+    mu : float
+        Dynamic viscosity (Pa·s).
+
+    Returns
+    -------
+    float
+        Reynolds number (dimensionless).
+    """
 
     return rho * velocity * hydraulic_diameter / mu
 
 
 def compute_prandtl(mu: float, cp: float, conductivity: float) -> float:
-    """计算普朗特数 Pr = mu*cp/k。"""
+    """Compute Prandtl number Pr = mu * cp / k.
+
+    Parameters
+    ----------
+    mu : float
+        Dynamic viscosity (Pa·s).
+    cp : float
+        Specific heat capacity (J/(kg·K)).
+    conductivity : float
+        Thermal conductivity (W/(m·K)).
+
+    Returns
+    -------
+    float
+        Prandtl number (dimensionless).
+    """
 
     return mu * cp / conductivity
 
 
 def dittus_boelter_h(conductivity: float, hydraulic_diameter: float, Re: float, Pr: float) -> float:
-    """用 Dittus-Boelter 公式计算管内/环空等效对流换热系数。
+    """Compute convective heat transfer coefficient using the Dittus-Boelter correlation.
 
-    h = 0.023 * k / dh * Re**0.8 * Pr**0.4
-    这里第一版统一使用加热流体常用指数 0.4。
+    h = 0.023 * k / dh * Re^0.8 * Pr^0.4
+
+    The exponent 0.4 (heating) is used uniformly throughout this baseline.
+
+    Parameters
+    ----------
+    conductivity : float
+        Fluid thermal conductivity (W/(m·K)).
+    hydraulic_diameter : float
+        Hydraulic diameter (m).
+    Re : float
+        Reynolds number (dimensionless).
+    Pr : float
+        Prandtl number (dimensionless).
+
+    Returns
+    -------
+    float
+        Convective heat transfer coefficient (W/(m2·K)).
     """
 
     return 0.023 * conductivity / hydraulic_diameter * Re**0.8 * Pr**0.4
 
 
 def compute_heat_transfer(config: ModelConfig) -> HeatTransferResult:
-    """计算全部换热参数。
+    """Compute all heat transfer parameters for the current configuration.
 
-    U_wall 表示井壁到环空流体的单位长度换热系数。
-    当 use_effective_borehole_resistance=True 时，U_wall=1/R_borehole；
-    否则回到旧写法 U_wall=2*pi*Rb*h_wall。
+    U_wall (wall-to-annulus) is the unit-length heat transfer coefficient:
+    - If use_effective_borehole_resistance is True: U_wall = 1 / R_borehole.
+    - Otherwise: U_wall = 2 * pi * Rb * h_wall (legacy formulation).
+
+    U_pa (pipe-to-annulus) accounts for the thermal short-circuit path:
+    inner-pipe convection + insulation conduction + annulus convection.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        Model configuration with borehole geometry, material properties, and
+        resistance settings.
+
+    Returns
+    -------
+    HeatTransferResult
+        All computed heat transfer coefficients and diagnostic quantities.
     """
 
     geometry = compute_geometry(config)

@@ -1,7 +1,26 @@
-"""从 OGS DBHE 项目文件提取纯物理 baseline 所需参数。
+"""
+Module name:
+    ogs_parameter_extractor.py
 
-本模块的输入严格限定为 OGS 的 ``.prj`` 和 ``.gml`` 定义文件。它不读取网格、
-VTK/PVD 或任何温度场结果，因此不能也不会使用 OGS 计算结果训练或校准模型。
+Purpose:
+    Extract physical parameters from OGS (OpenGeoSys) project files for use
+    in the physics-based baseline model.
+
+    The input is strictly limited to OGS ``.prj`` (project) and ``.gml``
+    (geometry) definition files. This module does NOT read mesh files, VTK/PVD
+    result files, or any temperature field data. It therefore cannot and does
+    not use OGS simulation results for training or calibration.
+
+Inputs:
+    - OGS .prj file (XML format)
+    - OGS .gml file (geometry XML format)
+
+Outputs:
+    - Dictionary of extracted parameters in SI units, written to JSON.
+
+Dependencies:
+    - xml.etree.ElementTree (standard library)
+    - pathlib, json, re (standard library)
 """
 
 from __future__ import annotations
@@ -93,9 +112,24 @@ def _curve_values(project_root: ET.Element, curve_name: str) -> list[float]:
 
 
 def extract_ogs_parameters(prj_path: Path | str, gml_path: Path | str) -> dict[str, Any]:
-    """解析 DBHE 项目参数，并全部以 SI 单位返回。
+    """Parse OGS DBHE project parameters and return all values in SI units.
 
-    参数仅来自输入 XML 文件；返回字典中不会保存或扫描网格、结果或温度场路径。
+    Parameters are extracted from the input XML files only; the returned
+    dictionary does NOT reference mesh, result, or temperature field data.
+
+    Parameters
+    ----------
+    prj_path : Path or str
+        Path to the OGS .prj project file.
+    gml_path : Path or str
+        Path to the OGS .gml geometry file.
+
+    Returns
+    -------
+    dict
+        Nested dictionary with keys: source_files, units, geometry, materials,
+        rock, fluid, geothermal, operation, boundary_conditions, geometry_points.
+        All numeric values are in SI units (m, degC, K/m, etc.).
     """
 
     prj_path = Path(prj_path)

@@ -1,7 +1,32 @@
-"""一维径向岩土瞬态导热求解器。
+"""
+Module name:
+    rock_solver_1d.py
 
-第一版把每一个 z 位置看作互相独立的一维径向导热问题，不考虑岩土轴向导热。
-径向网格使用对数网格，时间推进采用隐式有限体积近似，因此比显式格式更适合多年模拟。
+Purpose:
+    Solve the transient 1D radial heat conduction equation in the rock
+    surrounding the borehole.
+
+    Each depth (z) position is treated as an independent 1D radial problem;
+    axial (vertical) heat conduction in the rock is neglected in this version.
+    The radial mesh uses logarithmic spacing for higher resolution near the
+    borehole wall, and time integration uses an implicit finite-volume scheme.
+
+Physical model:
+    rho_r * cr * dTs/dt = kr * (1/r) * d/dr(r * dTs/dr)
+
+    Boundary conditions:
+        - Implicit Robin (borehole wall): q_wall = U_wall * (Twall_new - Ta)
+        - Dirichlet (far-field): Ts(Rout, z, t) = Tamb + G * z
+
+Dependencies:
+    - numpy
+    - scipy.linalg.solve_banded
+    - config.ModelConfig
+
+Outputs:
+    - RockGrid dataclass (r and z arrays)
+    - Initial rock temperature field (Nr × Nz array)
+    - Updated rock temperature field after each time step
 """
 
 from __future__ import annotations
@@ -17,14 +42,36 @@ from config import ModelConfig
 
 @dataclass
 class RockGrid:
-    """岩土与井深方向网格。"""
+    """Radial and vertical mesh for the rock domain.
+
+    Attributes
+    ----------
+    r : np.ndarray
+        Radial grid points (m), logarithmically spaced from Rb to Rout.
+    z : np.ndarray
+        Vertical grid points (m), uniformly spaced from 0 to H.
+    """
 
     r: np.ndarray
     z: np.ndarray
 
 
 def create_grids(config: ModelConfig) -> RockGrid:
-    """创建 z 方向线性网格和 r 方向对数网格。"""
+    """Create the vertical (z) linear grid and radial (r) logarithmic grid.
+
+    The radial grid uses log-spacing to concentrate nodes near the borehole
+    wall where temperature gradients are largest.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        Configuration with Nz, Nr, H, Rb, Rout.
+
+    Returns
+    -------
+    RockGrid
+        Radial and vertical mesh arrays.
+    """
 
     z = np.linspace(0.0, config.H, config.Nz)
     r = np.logspace(np.log10(config.Rb), np.log10(config.Rout), config.Nr)
@@ -32,9 +79,22 @@ def create_grids(config: ModelConfig) -> RockGrid:
 
 
 def initial_rock_temperature(grid: RockGrid, config: ModelConfig) -> np.ndarray:
-    """初始化岩土温度场 Ts(r,z,0)=Tamb+G*z。
+    """Initialise the rock temperature field: Ts(r, z, 0) = Tamb + G * z.
 
-    返回数组形状为 (Nr, Nz)，第一维是径向 r，第二维是井深 z。
+    Returns an array of shape (Nr, Nz) where the first dimension is radial
+    and the second is vertical depth.
+
+    Parameters
+    ----------
+    grid : RockGrid
+        Radial and vertical mesh.
+    config : ModelConfig
+        Configuration with Tamb and G.
+
+    Returns
+    -------
+    np.ndarray
+        Initial rock temperature (degC) at each (r, z) point, shape (Nr, Nz).
     """
 
     initial_z_temperature = config.Tamb + config.G * grid.z
@@ -62,30 +122,34 @@ def update_rock_temperature(
     config: ModelConfig,
     dt_seconds: float,
 ) -> np.ndarray:
-    """用井壁热流 q_wall 更新岩土温度。
+    """Advance the rock temperature field using explicit borehole wall heat flux.
 
-    参数
-    ----
-    Ts_old:
-        上一时刻岩土温度，形状 (Nr, Nz)。
-    q_wall:
-        流体从井壁获得的单位长度热量，单位 W/m，形状 (Nz,)。
-        当 q_wall > 0 时，表示岩土向流体放热，因此近井岩土应该降温。
-    grid:
-        r-z 网格。
-    config:
-        模型配置。
-    dt_seconds:
-        时间步长，单位 s。
+    For each depth z, the 1D radial heat conduction equation is solved
+    independently using an implicit finite-volume scheme:
 
-    实现说明
-    ----
-    对每个 z 独立求解：
-    rho*cr*dT/dt = kr/r * d/dr(r*dT/dr)
+        rho * cr * dT/dt = kr / r * d/dr(r * dT/dr)
 
-    内边界通过源项体现取热：
-    q_wall > 0 时，在最内侧控制体的能量方程右端减去 q_wall。
-    外边界采用 Dirichlet：Ts(Rout,z,t)=Tamb+G*z。
+    The heat extraction is imposed as a source term at the innermost control
+    volume: q_wall > 0 means heat leaves the rock and enters the fluid.
+
+    Parameters
+    ----------
+    Ts_old : np.ndarray
+        Rock temperature at the previous time step, shape (Nr, Nz) (degC).
+    q_wall : np.ndarray
+        Borehole wall heat flux per unit length, shape (Nz,) (W/m).
+        Positive values indicate rock-to-fluid heat transfer.
+    grid : RockGrid
+        Radial and vertical mesh.
+    config : ModelConfig
+        Model configuration with rock properties.
+    dt_seconds : float
+        Time step size (s).
+
+    Returns
+    -------
+    np.ndarray
+        Updated rock temperature field, shape (Nr, Nz) (degC).
     """
 
     r = grid.r
@@ -152,16 +216,36 @@ def update_rock_temperature_implicit_wall(
     config: ModelConfig,
     dt_seconds: float,
 ) -> np.ndarray:
-    """用隐式井壁 Robin 边界更新岩土温度。
+    """Advance the rock temperature field using an implicit Robin borehole wall condition.
 
-    与 update_rock_temperature 直接使用显式 q_wall 不同，本函数把
-    q_wall = U_wall * (Twall_new - Ta)
-    写入最内侧岩土控制体的隐式方程。这样当井壁温度在一个大时间步内下降时，
-    取热热流会同步减小，可避免强换热条件下的非物理过冷和振荡。
+    Unlike ``update_rock_temperature`` which uses an explicit q_wall, this
+    function embeds the wall condition directly in the implicit system:
 
-    物理符号仍然保持一致：
-    - 若 Twall_new > Ta，则 q_wall > 0，岩土向流体放热；
-    - 在岩土能量方程中表现为 -U_wall*(Twall_new-Ta)，因此最内侧岩土降温。
+        q_wall = U_wall * (Twall_new - Ta)
+
+    This couples the wall temperature and heat flux implicitly, preventing
+    unphysical overcooling that can occur when a large explicit heat flux is
+    applied over a coarse time step.
+
+    Parameters
+    ----------
+    Ts_old : np.ndarray
+        Rock temperature at the previous time step, shape (Nr, Nz) (degC).
+    Ta : np.ndarray
+        Annulus fluid temperature profile (degC).
+    U_wall : float
+        Unit-length wall-to-annulus heat transfer coefficient (W/(m·K)).
+    grid : RockGrid
+        Radial and vertical mesh.
+    config : ModelConfig
+        Model configuration with rock properties.
+    dt_seconds : float
+        Time step size (s).
+
+    Returns
+    -------
+    np.ndarray
+        Updated rock temperature field, shape (Nr, Nz) (degC).
     """
 
     r = grid.r

@@ -1,11 +1,26 @@
-"""井筒等效热阻敏感性测试脚本。
+"""
+Module name:
+    sensitivity_borehole_resistance.py
 
-本脚本不会被其他模块自动调用。只有用户手动运行时，才会依次计算
-R_borehole = 0.05, 0.10, 0.20, 0.50 m*K/W 四个 20 年单工况。
+Purpose:
+    Study the sensitivity of the outlet temperature to borehole thermal
+    resistance.
 
-目的：
-- 检查 U_wall 对初始 Tout、长期衰减和取热功率的影响；
-- 判断旧模型中只使用环空侧对流换热是否导致 U_wall 过大。
+    Runs four 20-year cases with:
+        R_borehole = [0.05, 0.10, 0.20, 0.50] m·K/W
+
+    Objectives:
+        1. Quantify the impact of U_wall on initial Tout, long-term decay,
+           and heat extraction power.
+        2. Assess whether using only the annulus convection in the legacy
+           formulation leads to unrealistically high U_wall.
+
+    This script is NOT called automatically by any other module.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.run_simulation
+    - postprocess._set_plot_style
 """
 
 from __future__ import annotations

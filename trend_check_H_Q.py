@@ -1,10 +1,25 @@
-"""H-Q 3x3 趋势验证脚本。
+"""
+Module name:
+    trend_check_H_Q.py
 
-本脚本只调用纯物理模型，不读取任何 OGS 输出。
-目的不是批量生产工况，而是用 9 个小矩阵工况检查基本物理趋势：
-1. H 增大时，地温更高，Tout 通常升高；
-2. Q 增大时，单 kg 水停留时间缩短，Tout 可能降低；
-3. Q 增大时，总质量流量增大，取热功率可能升高。
+Purpose:
+    Perform a 3×3 H-Q trend verification using only the physics-based model.
+
+    Eight operating points are simulated:
+        H = [2000, 2500, 3000] m
+        Q = [15, 30, 40] m3/h
+
+    Verification targets:
+        1. Larger H → higher Tout (stronger geothermal input).
+        2. Larger Q → lower Tout (shorter residence time per kg of fluid).
+        3. Larger Q → higher mean heat extraction power (higher mass flow rate).
+
+    This is NOT a batch production script; it verifies basic physical trends.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.run_simulation
+    - postprocess.build_time_based_metrics
 """
 
 from __future__ import annotations

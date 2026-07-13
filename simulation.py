@@ -1,6 +1,29 @@
-"""主仿真流程。
+"""
+Module name:
+    simulation.py
 
-本模块把几何、换热、流体 BVP 和岩土径向导热连接起来，形成一个可运行的纯物理 baseline。
+Purpose:
+    Orchestrate the full coupled simulation by connecting geometry, heat
+    transfer, fluid BVP, and rock heat conduction modules into a single
+    time-stepping loop.
+
+    This is the main integration point of the physics baseline.
+
+Workflow:
+    1. Initialise the r-z mesh and rock temperature field.
+    2. At each time step, read the current borehole wall temperature Twall(z).
+    3. Solve the quasi-steady fluid BVP -> Ta(z), Tp(z), Tout, q_wall.
+    4. Advance the radial rock temperature using the implicit Robin wall BC.
+    5. Record outlet temperature, heat extraction power, and cumulative energy.
+
+Dependencies:
+    - config.ModelConfig
+    - fluid_bvp_solver
+    - heat_transfer
+    - rock_solver_1d
+
+Outputs:
+    - SimulationResult dataclass with complete time series and diagnostics.
 """
 
 from __future__ import annotations
@@ -22,7 +45,47 @@ from rock_solver_1d import (
 
 @dataclass
 class SimulationResult:
-    """保存主模拟结果，便于后处理和测试。"""
+    """Complete simulation results for post-processing and analysis.
+
+    Attributes
+    ----------
+    config : ModelConfig
+        The configuration used for this simulation.
+    grid : RockGrid
+        Radial and vertical mesh.
+    heat_transfer : HeatTransferResult
+        Heat transfer coefficients and diagnostics.
+    time_s : np.ndarray
+        Time grid (s).
+    time_days : np.ndarray
+        Time grid (days).
+    time_years : np.ndarray
+        Time grid (years).
+    Tout : np.ndarray
+        Outlet temperature time series (degC).
+    power_W : np.ndarray
+        Heat extraction power time series (W).
+    cumulative_energy_J : np.ndarray
+        Cumulative extracted energy (J).
+    final_Ta : np.ndarray
+        Final annulus temperature profile (degC).
+    final_Tp : np.ndarray
+        Final inner-pipe temperature profile (degC).
+    final_q_wall : np.ndarray
+        Final borehole wall heat flux profile (W/m).
+    initial_Twall : np.ndarray
+        Initial borehole wall temperature profile (degC).
+    final_Twall : np.ndarray
+        Final borehole wall temperature profile (degC).
+    final_Ts : np.ndarray
+        Final rock temperature field, shape (Nr, Nz) (degC).
+    rock_temperature_snapshots : dict[float, np.ndarray]
+        Rock temperature fields at requested snapshot years.
+    rock_snapshot_actual_years : dict[float, float]
+        Actual simulation years corresponding to each snapshot key.
+    bvp_messages : list[str]
+        Solver status messages from each time step.
+    """
 
     config: ModelConfig
     grid: RockGrid
@@ -73,14 +136,25 @@ def _build_snapshot_index_map(config: ModelConfig, time_years: np.ndarray) -> di
 
 
 def run_simulation(config: ModelConfig) -> SimulationResult:
-    """运行单工况纯物理模拟。
+    """Run a single-case physics-based simulation.
 
-    流程：
-    1. 初始化 r-z 网格和岩土温度；
-    2. 每个时间步读取当前井壁温度 Twall(z)；
-    3. 求解准稳态流体 BVP，得到 Ta、Tp、Tout、q_wall；
-    4. 用隐式井壁边界更新岩土径向温度；
-    5. 保存出口水温、取热功率、累计取热量和指定年份岩土快照。
+    Workflow:
+        1. Initialise r-z mesh and rock temperature field.
+        2. At each time step, obtain the current Twall(z).
+        3. Solve the quasi-steady fluid BVP -> Ta, Tp, Tout, q_wall.
+        4. Advance the radial rock temperature with implicit Robin BC.
+        5. Record Tout(t), power(t), cumulative energy, and rock snapshots.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        Full model configuration (geometry, materials, mesh, run control).
+
+    Returns
+    -------
+    SimulationResult
+        Complete simulation output including all time series, temperature
+        profiles, and rock temperature snapshots.
     """
 
     grid = create_grids(config)

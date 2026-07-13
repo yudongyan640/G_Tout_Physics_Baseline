@@ -1,7 +1,31 @@
-"""项目集中配置文件。
+"""
+Module name:
+    config.py
 
-本文件用 dataclass 保存单工况参数、几何参数、物性参数、数值网格和输出路径。
-第一版 baseline 只依赖这些物理输入，不读取任何 OGS 计算结果。
+Purpose:
+    Central configuration for the physics-based DBHE outlet temperature baseline.
+
+    Defines the ModelConfig dataclass that holds all run parameters, including
+    operating conditions, borehole geometry, material properties, numerical
+    discretisation, and output paths.
+
+    The first baseline version depends only on these physical inputs and does
+    not read any OGS simulation results.
+
+Inputs:
+    - (optional) OGS mapping JSON file at outputs/baseline_physical_parameters.json,
+      loaded automatically when use_ogs_parameters = True.
+
+Outputs:
+    - ModelConfig instance consumed by geometry, heat_transfer, fluid_bvp_solver,
+      rock_solver_1d, and simulation modules.
+
+Units:
+    - Temperature in degC (temperature differences are equivalent to K).
+    - Time internally converted to seconds (s).
+    - Flow rate input in m3/h, converted to m3/s internally.
+    - Geometric lengths in metres (m).
+    - Material properties in SI units (W/(m·K), J/(kg·K), Pa·s, …).
 """
 
 from __future__ import annotations
@@ -13,13 +37,55 @@ from pathlib import Path
 
 @dataclass
 class ModelConfig:
-    """中深层同轴套管地埋管换热器纯物理 baseline 的配置。
+    """Configuration for the physics-based DCBHE outlet temperature baseline.
 
-    说明：
-    - 温度使用摄氏度 degC。由于传热方程只用温差，degC 与 K 的温差等价。
-    - 时间内部统一换算为秒 s。
-    - 流量输入单位为 m3/h，内部换算为 m3/s。
-    - 几何参数是第一版占位默认值，后续应替换为 OGS 模型或实际工程尺寸。
+    All temperatures are in degC (temperature differences are equivalent to K).
+    Time is stored in seconds internally. Flow rate is input in m3/h and
+    converted to m3/s. Geometric parameters are first-placeholder defaults
+    and should be replaced with OGS model or real project values.
+
+    Parameters
+    ----------
+    H : float
+        Borehole depth (m).
+    Q : float
+        Volumetric flow rate (m3/h).
+    Tin : float
+        Inlet fluid temperature at annulus top (degC).
+    Tamb : float
+        Surface ground temperature (degC).
+    G : float
+        Geothermal gradient (K/m).
+    t_end_years : float
+        Total simulation duration (years).
+    dt_days : float
+        Time step (days).
+    Nz : int
+        Number of grid points in the vertical (z) direction.
+    Nr : int
+        Number of grid points in the radial (r) direction.
+    Rb : float
+        Borehole wall radius (m).
+    Rout : float
+        Far-field rock outer radius (m).
+    rho_w : float
+        Water density (kg/m3).
+    cw : float
+        Water specific heat capacity (J/(kg·K)).
+    kw : float
+        Water thermal conductivity (W/(m·K)).
+    mu_w : float
+        Water dynamic viscosity (Pa·s).
+    rho_r : float
+        Rock density (kg/m3).
+    cr : float
+        Rock specific heat capacity (J/(kg·K)).
+    kr : float
+        Rock thermal conductivity (W/(m·K)).
+    use_effective_borehole_resistance : bool
+        If True, U_wall = 1 / borehole_resistance (lumped resistance model).
+    borehole_resistance : float
+        Equivalent borehole thermal resistance (m·K/W).
     """
 
     # 单工况输入参数
@@ -80,7 +146,12 @@ class ModelConfig:
     output_root: Path = Path("outputs")
 
     def __post_init__(self) -> None:
-        """在用户启用开关时，用已映射的 OGS 物理参数覆盖默认占位参数。"""
+        """Overwrite default placeholder parameters with OGS-mapped values.
+
+        When use_ogs_parameters is True, reads the JSON file produced by
+        check_ogs_mapping.py and replaces geometry, material, and resistance
+        fields with the mapped values.
+        """
 
         if not self.use_ogs_parameters:
             return
@@ -120,30 +191,30 @@ class ModelConfig:
 
     @property
     def annulus_inner_radius(self) -> float:
-        """环空内半径，即中心管外/保温层外半径。"""
+        """Inner radius of the annulus, equal to the outer pipe radius."""
 
         return self.r_outer
 
     @property
     def annulus_outer_radius(self) -> float:
-        """环空外半径；未映射时近似等于井壁半径以兼容旧版本。"""
+        """Outer radius of the annulus; falls back to Rb for backwards compatibility."""
 
         return self.Rb if self.r_annulus_outer is None else self.r_annulus_outer
 
     @property
     def dt_seconds(self) -> float:
-        """时间步长，单位 s。"""
+        """Time step in seconds (s)."""
 
         return self.dt_days * 24.0 * 3600.0
 
     @property
     def t_end_seconds(self) -> float:
-        """总模拟时间，单位 s。"""
+        """Total simulation duration in seconds (s)."""
 
         return self.t_end_years * 365.0 * 24.0 * 3600.0
 
     @property
     def case_name(self) -> str:
-        """根据关键工况参数生成输出文件夹名称。"""
+        """Output directory name generated from key operating parameters."""
 
         return f"case_H{self.H:g}_Q{self.Q:g}_Tin{self.Tin:g}"

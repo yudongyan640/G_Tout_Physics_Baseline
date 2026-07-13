@@ -1,4 +1,18 @@
-"""检查 OGS XML 参数到 pure physics baseline 的映射结果。"""
+"""
+Module name:
+    check_ogs_mapping.py
+
+Purpose:
+    Validate the mapping of OGS XML parameters to the physics-based baseline
+    model configuration.
+
+    Runs the full extraction → mapping → validation pipeline and reports
+    missing fields, SI-unit consistency, and numerical anomalies.
+
+Dependencies:
+    - ogs_parameter_extractor
+    - parameter_mapping
+"""
 
 from __future__ import annotations
 
@@ -10,7 +24,27 @@ from parameter_mapping import build_baseline_parameters, write_baseline_paramete
 
 
 def validate_mapping(raw: dict[str, Any], mapped: dict[str, Any]) -> dict[str, Any]:
-    """检查映射所需字段、SI 单位和基本数值范围。"""
+    """Validate the OGS-to-baseline parameter mapping.
+
+    Checks:
+        - Required fields are present in the mapped dictionary.
+        - Core parameters (H, Rb, R_borehole, etc.) are positive and numeric.
+        - Geometric consistency (r_inner < r_outer < annulus_radius <= Rb).
+        - SI unit consistency against the raw source specification.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw OGS parameters.
+    mapped : dict
+        Mapped baseline parameters.
+
+    Returns
+    -------
+    dict
+        Validation report with keys: missing_required, anomalies,
+        si_units_consistent, unmapped_boundary_conditions.
+    """
 
     required_mapped = (
         "H", "Rb", "r_inner", "r_outer", "annulus_outer_radius", "R_borehole", "U_wall", "R_short_circuit", "U_pa"

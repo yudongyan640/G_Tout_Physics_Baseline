@@ -1,11 +1,22 @@
-"""短时间 smoke test。
+"""
+Module name:
+    sanity_check.py
 
-该脚本使用较小网格和 10 天模拟时间，用于快速检查：
-1. 程序能否跑完；
-2. Tout 是否大于 Tin；
-3. q_wall 大多数位置是否为正；
-4. 近井岩土温度是否下降；
-5. 输出简短文本报告。
+Purpose:
+    Quick smoke test using a small mesh and a 10-day simulation.
+
+    Checks:
+        1. The code runs without errors.
+        2. Tout > Tin (physical consistency).
+        3. q_wall is positive at most depths (heat flows from rock to fluid).
+        4. Near-well rock temperature decreases (consistent with heat extraction).
+
+    This script is intended for rapid verification before running the full
+    20-year simulation.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.run_simulation
 """
 
 from __future__ import annotations

@@ -1,7 +1,22 @@
-"""单工况运行入口。
+"""
+Module name:
+    run_single_case.py
 
-默认工况为 H=2500 m、Q=30 m3/h、Tin=10 degC、t_end=20 years、dt=30 days。
-本脚本只在用户手动运行时执行，不应在项目创建或修改阶段自动启动长时间模拟。
+Purpose:
+    Entry point for a single-case simulation with default parameters:
+        H = 2500 m,  Q = 30 m3/h,  Tin = 10 degC,
+        t_end = 20 years,  dt = 30 days.
+
+    This script must only be executed manually by the user. It should never
+    be triggered automatically during project setup or modification.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.run_simulation
+    - postprocess
+
+Outputs:
+    - CSV time series, JSON diagnostics and summary, PNG/SVG figures.
 """
 
 from __future__ import annotations

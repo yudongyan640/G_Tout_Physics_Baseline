@@ -1,4 +1,24 @@
-"""将 OGS XML 原始物理参数映射为 pure physics baseline 配置。"""
+"""
+Module name:
+    parameter_mapping.py
+
+Purpose:
+    Map raw OGS physical parameters (extracted from .prj/.gml files) into the
+    physics-based baseline model configuration.
+
+    This module converts OGS geometric definitions into borehole thermal
+    resistances via the dedicated calculator modules, and computes the
+    corresponding convection coefficients using the same Dittus-Boelter
+    correlation used in heat_transfer.py for consistency.
+
+Dependencies:
+    - borehole_resistance_calculator
+    - short_circuit_resistance_calculator
+    - heat_transfer
+
+Outputs:
+    - Dictionary of mapped baseline parameters, saved as JSON for ModelConfig.
+"""
 
 from __future__ import annotations
 
@@ -43,7 +63,28 @@ def _calculate_convection(raw: dict[str, Any], q_m3h: float) -> dict[str, float]
 
 
 def build_baseline_parameters(raw: dict[str, Any]) -> dict[str, Any]:
-    """生成可由 ``ModelConfig`` 直接加载的 baseline 物理参数字典。"""
+    """Build a baseline parameter dictionary loadable by ModelConfig.
+
+    The function:
+        1. Extracts the active flow rate and inlet temperature from OGS curves.
+        2. Computes convection coefficients using Dittus-Boelter.
+        3. Calculates borehole wall path resistance and U_wall.
+        4. Calculates short-circuit path resistance and U_pa.
+        5. Assembles all parameters into a flat dictionary for JSON export.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw OGS parameters from ogs_parameter_extractor.extract_ogs_parameters().
+
+    Returns
+    -------
+    dict
+        Mapped baseline parameters with keys: H, Q, Tin, Rb, r_inner, r_outer,
+        annulus_outer_radius, rock_properties, fluid_properties, geothermal,
+        insulation_thermal_conductivity, R_borehole, U_wall, R_short_circuit,
+        U_pa, resistance_components, convection_diagnostics, etc.
+    """
 
     geometry = raw["geometry"]
     materials = raw["materials"]

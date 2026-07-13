@@ -1,8 +1,18 @@
-"""前 1 年出口水温快速下降检查脚本。
+"""
+Module name:
+    early_time_check.py
 
-本脚本只运行纯物理 baseline，不读取任何 OGS 输出文件。
-用途是把默认 30 天时间步改为 1 天时间步，检查前 1 年 Tout 快速下降
-是否主要由时间步过粗引起。
+Purpose:
+    Examine the rapid outlet temperature drop during the first year by using
+    a finer time step (1 day instead of the default 30 days).
+
+    This script runs only the physics-based baseline and does NOT read any
+    OGS output files. Results help determine whether the initial Tout decline
+    is primarily caused by a coarse time step.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.run_simulation
 """
 
 from __future__ import annotations

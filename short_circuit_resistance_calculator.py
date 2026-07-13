@@ -1,7 +1,24 @@
-"""中心管与环空流体热短路的等效热阻计算模块。
+"""
+Module name:
+    short_circuit_resistance_calculator.py
 
-本模块仅描述 ``Tp -> Ta`` 路径：中心管内侧对流、保温层导热和环空侧对流。
-它不包含外管、回填材料或岩土，这些内容属于井壁到环空的另一条路径。
+Purpose:
+    Compute the unit-length thermal short-circuit resistance between the inner
+    pipe fluid (Tp) and the annulus fluid (Ta).
+
+    The heat flow path is:
+        inner-pipe convection → insulation conduction → annulus convection.
+
+    This module does NOT cover the borehole wall path (pipe → grout → rock),
+    which is handled by ``borehole_resistance_calculator.py``.
+
+Dependencies:
+    - borehole_resistance_calculator (reuses compute_convective_resistance
+      and compute_cylindrical_layer_resistance)
+
+Outputs:
+    - R_short_circuit (m·K/W)
+    - Equivalent U_pa (W/(m·K))
 """
 
 from __future__ import annotations
@@ -20,10 +37,33 @@ def calculate_short_circuit_path(
     annulus_h: float,
     insulation_k: float,
 ) -> dict[str, object]:
-    """计算中心管流体到环空流体的单位长度热阻和 ``U_pa``。
+    """Compute the unit-length thermal resistance and U_pa for the Tp → Ta short-circuit path.
 
-    参数中的半径为中心管内、外半径，``center_h`` 和 ``annulus_h`` 分别由
-    当前工况下中心管与环空的对流关联式计算得到，单位均为 SI。
+    The path consists of three serial components:
+        1. Inner-pipe convection
+        2. Insulation layer conduction
+        3. Annulus-side convection
+
+    Parameters
+    ----------
+    center_inner_radius : float
+        Inner radius of the centre pipe (m).
+    center_outer_radius : float
+        Outer radius of the centre pipe / insulation (m).
+    center_h : float
+        Inner-pipe convective coefficient (W/(m2·K)).
+    annulus_h : float
+        Annulus-side convective coefficient (W/(m2·K)).
+    insulation_k : float
+        Insulation thermal conductivity (W/(m·K)).
+
+    Returns
+    -------
+    dict
+        With keys:
+        - "R_short_circuit": total unit-length resistance (m·K/W)
+        - "U_pa": equivalent unit-length heat transfer coefficient (W/(m·K))
+        - "components": breakdown of each resistance term for diagnostics.
     """
 
     components = {

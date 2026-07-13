@@ -1,7 +1,26 @@
-"""结果保存与绘图模块。
+"""
+Module name:
+    postprocess.py
 
-本文件负责把 SimulationResult 保存为 CSV、JSON 和图像。
-所有图使用 matplotlib，不使用 seaborn；英文和数字字体设置为 Times New Roman。
+Purpose:
+    Save simulation results to CSV, JSON, and generate publication-quality
+    figures in both PNG and SVG formats.
+
+    All plots use matplotlib (no seaborn) with Times New Roman fonts for
+    English text and numbers, following scientific figure conventions.
+
+Dependencies:
+    - config.ModelConfig
+    - simulation.SimulationResult
+    - matplotlib, numpy, pandas
+
+Outputs:
+    - tout_timeseries.csv
+    - fluid_profiles.csv
+    - diagnostics.json
+    - summary.json
+    - Multiple PNG and SVG figures (Tout vs time, power vs time,
+      fluid temperature profiles, rock radial profiles).
 """
 
 from __future__ import annotations
@@ -44,9 +63,22 @@ def _save_figure(fig: plt.Figure, output_dir: Path, stem: str) -> None:
 
 
 def build_diagnostics(result: SimulationResult) -> dict[str, float | bool]:
-    """生成换热与流动诊断参数。
+    """Generate heat-transfer and flow diagnostics.
 
-    这些量用于检查 U_wall 是否过大、流速是否合理、Dittus-Boelter 公式是否处在湍流适用范围。
+    These quantities help verify whether U_wall is reasonable, flow velocities
+    are physically plausible, and the Dittus-Boelter correlation is operating
+    within its turbulent range.
+
+    Parameters
+    ----------
+    result : SimulationResult
+        Complete simulation output.
+
+    Returns
+    -------
+    dict
+        Diagnostic metrics including mass flow rate, areas, velocities,
+        Reynolds numbers, convective coefficients, and U_wall/U_pa.
     """
 
     heat_transfer = result.heat_transfer
@@ -212,9 +244,19 @@ def _plot_rock_radial_profiles(result: SimulationResult, output_dir: Path) -> No
 
 
 def save_outputs(result: SimulationResult, config: ModelConfig | None = None) -> Path:
-    """保存模拟结果和图像。
+    """Save simulation results (CSV, JSON) and figures (PNG, SVG).
 
-    返回当前工况的输出目录路径。
+    Parameters
+    ----------
+    result : SimulationResult
+        Complete simulation output.
+    config : ModelConfig or None
+        Configuration (defaults to result.config if None).
+
+    Returns
+    -------
+    Path
+        Output directory containing all saved files.
     """
 
     if config is None:

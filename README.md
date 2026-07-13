@@ -50,7 +50,7 @@ This model reads OGS simulation configuration (`.prj` / `.gml` files) for parame
 
 ---
 
-## 3. Model Framework
+## 3. Model Workflow
 
 ```
 OGS physical parameters (.prj / .gml)
@@ -113,38 +113,27 @@ The borehole wall heat flux `q_wall` is treated implicitly to avoid numerical in
 
 ## 5. Project Structure
 
-```
-G_Tout_Physics_Baseline/
-│
-├── config.py                          # Model configuration (geometry, mesh, run settings)
-├── geometry.py                        # Geometric calculations (areas, hydraulic diameter, velocity)
-├── heat_transfer.py                   # Heat transfer coefficients (Re, Pr, Nu, U_wall, U_pa)
-├── fluid_bvp_solver.py                # Quasi-steady fluid BVP solver (scipy.integrate.solve_bvp)
-├── rock_solver_1d.py                  # 1D radial rock heat conduction (implicit finite-difference)
-├── simulation.py                      # Main simulation orchestrator (time-stepping loop)
-├── run_single_case.py                 # Entry point: run a single default case (20-year)
-├── postprocess.py                     # Output post-processing (CSV, JSON, PNG/SVG figures)
-│
-├── borehole_resistance_calculator.py  # Borehole thermal resistance calculation
-├── short_circuit_resistance_calculator.py  # Short-circuit thermal resistance calculation
-│
-├── ogs_parameter_extractor.py         # OGS .prj / .gml parameter parser
-├── parameter_mapping.py               # Map OGS parameters to physical model inputs
-├── check_ogs_mapping.py               # Validate OGS parameter mapping
-│
-├── sanity_check.py                    # Quick smoke test (small problem size)
-├── trend_check_H_Q.py                 # H-Q trend verification script
-├── sensitivity_borehole_resistance.py # Borehole resistance sensitivity study
-├── early_time_check.py                # Start-up period diagnostics
-│
-├── test_*.py                          # Unit tests (7 test files)
-├── CHANGELOG.md                       # Version history
-├── requirements.txt                   # Python dependencies
-├── .gitignore                         # Git ignore rules
-├── AGENTS.md                          # Agent configuration
-├── CLAUDE.md                          # Project instructions
-└── README.md                          # This file
-```
+| File | Description |
+|---|---|
+| `config.py` | Global configuration and physical parameters |
+| `geometry.py` | Borehole geometry definition and flow calculations |
+| `heat_transfer.py` | Heat transfer correlations (Re, Pr, Nu, U_wall, U_pa) |
+| `fluid_bvp_solver.py` | Fluid temperature BVP solver |
+| `rock_solver_1d.py` | 1D radial transient rock heat conduction solver |
+| `simulation.py` | Main coupled simulation workflow |
+| `borehole_resistance_calculator.py` | Calculate borehole thermal resistance R_borehole |
+| `short_circuit_resistance_calculator.py` | Calculate pipe-to-annulus short circuit resistance |
+| `ogs_parameter_extractor.py` | Extract physical parameters from OGS .prj / .gml files |
+| `parameter_mapping.py` | Map OGS parameters to baseline model configuration |
+| `check_ogs_mapping.py` | Validate OGS-to-baseline parameter mapping |
+| `run_single_case.py` | Single case simulation entry point |
+| `postprocess.py` | Result visualization and post-processing (CSV, JSON, figures) |
+| `sanity_check.py` | Quick smoke test with small mesh |
+| `trend_check_H_Q.py` | Depth (H) and flow rate (Q) sensitivity analysis |
+| `sensitivity_borehole_resistance.py` | Thermal resistance sensitivity study |
+| `early_time_check.py` | Start-up period diagnostics with fine time step |
+| `CHANGELOG.md` | Version history |
+| `requirements.txt` | Python dependencies |
 
 ---
 
