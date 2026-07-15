@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.1.0
+
+Date: 2026-07-15
+
+### Added
+
+- Independent continuous-operation validation against OGS.
+- Outlet temperature comparison workflow.
+- MAE, RMSE, R2 and Bias evaluation.
+- Validation documentation and figures.
+
+### Validation case
+
+Case: 2501_26_11
+
+Conditions:
+
+- H=2501 m
+- Q=26 m3/h
+- Tin=11 ℃
+
+Results:
+
+- MAE: 2.12 ℃
+- RMSE: 5.17 ℃
+- Bias: 0.17 ℃
+
+### Notes
+
+No physical parameters were calibrated.
+No OGS temperature field data were used.
+
 ## v1.0.0
 
 Date: 2026-07-13

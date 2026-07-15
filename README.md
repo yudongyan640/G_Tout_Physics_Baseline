@@ -1,6 +1,6 @@
 # Physics-Based Outlet Temperature Prediction Model for Deep Coaxial Borehole Heat Exchanger
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)]()
 [![Status](https://img.shields.io/badge/status-stable-brightgreen)]()
 
 A **physics-driven baseline** for predicting the outlet fluid temperature `Tout(t)` of a deep coaxial borehole heat exchanger (DCBHE). This model is built entirely on first-principles partial differential equations and requires **no OGS training data, no machine learning, and no calibration against numerical simulation results**.
@@ -207,6 +207,7 @@ conda run -n geo_pinn python -m pip install -r requirements.txt
 
 | Version | Date | Description |
 |---|---|---|
+| [v1.1.0](https://github.com/yudongyan640/G_Tout_Physics_Baseline/releases/tag/v1.1.0) | 2026-07-15 | Continuous operation validation release: independent OGS outlet-temperature comparison and error metrics for Case A (2501_26_11). |
 | [v1.0.0](https://github.com/yudongyan640/G_Tout_Physics_Baseline/releases/tag/v1.0.0) | 2026-07-13 | Initial stable release |
 
 See [CHANGELOG.md](CHANGELOG.md) for details.

@@ -1,0 +1,6 @@
+Case: caseA_2501_26_11
+Aligned samples: 332
+MAE: 2.119919 degC
+RMSE: 5.171563 degC
+R2: -10.153679
+Bias: 0.171683 degC

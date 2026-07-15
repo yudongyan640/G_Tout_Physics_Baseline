@@ -12,6 +12,7 @@ outputs_smoke/
 
 # OGS raw data
 OGS_data/
+2501_26_11/
 *.vtu
 *.pvd
 *.prj
